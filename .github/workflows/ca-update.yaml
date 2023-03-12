@@ -8,11 +8,15 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
+      - uses: actions/setup-python@v4
+        with:
+          python-version: '3.10' 
         
       - name: Download and Parse
         run: |
+          python3.10 -m pip install cryptography
           wget https://curl.se/ca/cacert.pem
-          python3 Meta/ca-update.py
+          python3.10 Meta/ca-update.py
           mv ca_certs.ini Base/etc/
           rm -f cacert.pem
 
