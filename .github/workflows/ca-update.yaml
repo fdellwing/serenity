@@ -11,8 +11,7 @@ jobs:
         
       - name: Download and Parse
         run: |
-          python3 -m pip install cryptography
-          curl https://curl.se/ca/cacert.pem
+          wget https://curl.se/ca/cacert.pem
           python3 Meta/ca-update.py
           mv ca_certs.ini Base/etc/
           rm -f cacert.pem
