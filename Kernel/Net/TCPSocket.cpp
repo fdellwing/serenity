@@ -511,6 +511,23 @@ ErrorOr<u16> TCPSocket::protocol_allocate_local_port()
     });
 }
 
+ErrorOr<bool> TCPSocket::ensure_local_port_allocation()
+{
+    return sockets_by_tuple().with_exclusive([&](auto& table) -> ErrorOr<bool> {
+        IPv4SocketTuple proposed_tuple(local_address(), local_port(), peer_address(), peer_port());
+
+        auto it = table.find(proposed_tuple);
+        if (it == table.end()) {
+            table.set(proposed_tuple, this);
+            return true;
+        }
+        // If the state is not closed, assume it is our socket and don't fail.
+        if (state() == State::Closed)
+            return set_so_error(EADDRINUSE);
+        return false;
+    });
+}
+
 bool TCPSocket::protocol_is_disconnected() const
 {
     switch (m_state) {

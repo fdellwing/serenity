@@ -179,8 +179,14 @@ bool IPv4Socket::can_write(OpenFileDescription const&, u64) const
 PortAllocationResult IPv4Socket::allocate_local_port_if_needed()
 {
     MutexLocker locker(mutex());
-    if (m_local_port)
-        return { m_local_port, false };
+    if (m_local_port) {
+        auto result = ensure_local_port_allocation();
+        if (result.is_error())
+            return { result.release_error(), false };
+
+        auto allocated = result.release_value();
+        return { m_local_port, allocated };
+    }
     auto port_or_error = protocol_allocate_local_port();
     if (port_or_error.is_error())
         return { port_or_error.release_error(), false };
