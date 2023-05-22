@@ -7,6 +7,8 @@
 
 #include "SpiceAgent.h"
 #include <AK/Debug.h>
+#include <LibCore/Socket.h>
+#include <LibCore/System.h>
 #include <LibGUI/Clipboard.h>
 #include <LibGfx/ImageFormats/ImageDecoder.h>
 #include <LibGfx/ImageFormats/PNGWriter.h>
@@ -15,7 +17,27 @@ namespace SpiceAgent {
 
 ErrorOr<NonnullOwnPtr<SpiceAgent>> SpiceAgent::create(StringView device_path)
 {
-    auto device = TRY(Core::File::open(device_path, Core::File::OpenMode::ReadWrite | Core::File::OpenMode::Nonblocking));
+    (void)device_path;
+    int fd = TRY(Core::System::socket(AF_INET, SOCK_STREAM, 0));
+
+    struct timeval timeout {
+        3, 0
+    };
+    TRY(Core::System::setsockopt(fd, SOL_SOCKET, SO_RCVTIMEO, &timeout, sizeof(timeout)));
+    TRY(Core::System::setsockopt(fd, SOL_SOCKET, SO_SNDTIMEO, &timeout, sizeof(timeout)));
+
+    sockaddr_in dst_addr {};
+    dst_addr.sin_family = AF_INET;
+    dst_addr.sin_port = htons(5930);
+
+    if (inet_pton(AF_INET, "10.0.2.2", &dst_addr.sin_addr) <= 0) {
+        perror("inet_pton");
+    }
+
+    TRY(Core::System::connect(fd, (struct sockaddr*)&dst_addr, sizeof(dst_addr)));
+    auto device = TRY(Core::File::adopt_fd(fd, Core::File::OpenMode::ReadWrite | Core::File::OpenMode::Nonblocking, Core::File::ShouldCloseFileDescriptor::No));
+
+    // auto device = TRY(Core::File::open(device_path, Core::File::OpenMode::ReadWrite | Core::File::OpenMode::Nonblocking));
     return try_make<SpiceAgent>(move(device), Vector { Capability::ClipboardByDemand });
 }
 

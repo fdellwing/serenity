@@ -353,7 +353,7 @@ $SERENITY_SPICE_SERVER_CHARDEV
 if [ "$SERENITY_ARCH" != "aarch64" ]; then
     if [ "${SERENITY_SPICE}" ] && "${SERENITY_QEMU_BIN}" -chardev help | grep -iq spice; then
         SERENITY_COMMON_QEMU_ARGS="$SERENITY_COMMON_QEMU_ARGS
-        -spice port=5930,agent-mouse=off,disable-ticketing=on
+        -spice port=5930,unix=off,ipv4=off,ipv6=off,addr=0.0.0.0,agent-mouse=off,disable-ticketing=on -display none
         "
     fi
     if "${SERENITY_QEMU_BIN}" -chardev help | grep -iq 'spice\|vdagent'; then
