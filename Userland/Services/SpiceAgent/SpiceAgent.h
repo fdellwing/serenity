@@ -16,6 +16,7 @@
 #include <AK/Vector.h>
 #include <LibCore/File.h>
 #include <LibCore/Notifier.h>
+#include <LibCore/Socket.h>
 
 namespace SpiceAgent {
 
@@ -29,7 +30,7 @@ constexpr u32 file_transfer_buffer_threshold = 65536;
 class SpiceAgent {
 public:
     static ErrorOr<NonnullOwnPtr<SpiceAgent>> create(StringView device_path);
-    SpiceAgent(NonnullOwnPtr<Core::File> spice_device, Vector<Capability> const& capabilities);
+    SpiceAgent(NonnullOwnPtr<Core::TCPSocket> spice_device, int fd, Vector<Capability> const& capabilities);
 
     ErrorOr<void> start();
 
@@ -63,7 +64,7 @@ public:
     }
 
 private:
-    NonnullOwnPtr<Core::File> m_spice_device;
+    NonnullOwnPtr<Core::TCPSocket> m_spice_device;
     Vector<Capability> m_capabilities;
     HashMap<u32, NonnullRefPtr<FileTransferOperation>> m_file_transfer_operations;
 

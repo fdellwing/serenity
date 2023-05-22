@@ -21,7 +21,7 @@ ErrorOr<NonnullOwnPtr<SpiceAgent>> SpiceAgent::create(StringView device_path)
     int fd = TRY(Core::System::socket(AF_INET, SOCK_STREAM, 0));
 
     struct timeval timeout {
-        3, 0
+        10, 0
     };
     TRY(Core::System::setsockopt(fd, SOL_SOCKET, SO_RCVTIMEO, &timeout, sizeof(timeout)));
     TRY(Core::System::setsockopt(fd, SOL_SOCKET, SO_SNDTIMEO, &timeout, sizeof(timeout)));
@@ -35,18 +35,19 @@ ErrorOr<NonnullOwnPtr<SpiceAgent>> SpiceAgent::create(StringView device_path)
     }
 
     TRY(Core::System::connect(fd, (struct sockaddr*)&dst_addr, sizeof(dst_addr)));
-    auto device = TRY(Core::File::adopt_fd(fd, Core::File::OpenMode::ReadWrite | Core::File::OpenMode::Nonblocking, Core::File::ShouldCloseFileDescriptor::No));
+    // auto device = TRY(Core::File::adopt_fd(fd, Core::File::OpenMode::ReadWrite | Core::File::OpenMode::Nonblocking, Core::File::ShouldCloseFileDescriptor::No));
+    auto device = TRY(Core::TCPSocket::adopt_fd(fd));
 
     // auto device = TRY(Core::File::open(device_path, Core::File::OpenMode::ReadWrite | Core::File::OpenMode::Nonblocking));
-    return try_make<SpiceAgent>(move(device), Vector { Capability::ClipboardByDemand });
+    return try_make<SpiceAgent>(move(device), fd, Vector { Capability::ClipboardByDemand });
 }
 
-SpiceAgent::SpiceAgent(NonnullOwnPtr<Core::File> spice_device, Vector<Capability> const& capabilities)
+SpiceAgent::SpiceAgent(NonnullOwnPtr<Core::TCPSocket> spice_device, int fd, Vector<Capability> const& capabilities)
     : m_spice_device(move(spice_device))
     , m_capabilities(capabilities)
 {
     m_notifier = Core::Notifier::construct(
-        m_spice_device->fd(),
+        fd,
         Core::Notifier::Type::Read);
 
     m_notifier->on_activation = [this] {
@@ -122,6 +123,7 @@ ErrorOr<void> SpiceAgent::send_clipboard_contents(ClipboardDataType data_type)
 ErrorOr<void> SpiceAgent::on_message_received()
 {
     auto buffer = TRY(this->read_message_buffer());
+    dbgln("{}", buffer.bytes());
     auto stream = FixedMemoryStream(buffer.bytes());
 
     auto header = TRY(stream.read_value<MessageHeader>());
