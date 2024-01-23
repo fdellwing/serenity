@@ -1,0 +1,41 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Fabian Dellwing <fabian@dellwing.net>
+Date: Tue, 23 Jan 2024 14:08:31 +0100
+Subject: [PATCH] Add SerenityOS to Makefile
+
+---
+ GNUmakefile | 10 +++++++++-
+ 1 file changed, 9 insertions(+), 1 deletion(-)
+
+diff --git a/GNUmakefile b/GNUmakefile
+index fee53a660327e298bfff177af6de8138d4ba12f1..1529d96e107be69f0765253312c972cb6ca58a3e 100644
+--- a/GNUmakefile
++++ b/GNUmakefile
+@@ -12,11 +12,12 @@ OBJS	= main.o digger.o drawing.o sprite.o scores.o record.o sound.o \
+ 		digger_math.o monster_obj.o digger_obj.o bullet_obj.o \
+ 		cgagrafx.o keyboard.o soundgen.o spinlock.o game.o
+ 
+-ARCH	?= LINUX
++#ARCH	?= LINUX
+ #ARCH	?= MINGW
+ #ARCH	?= FREEBSD
+ #ARCH	?= WASM
+ #ARCH	?= FooOS
++ARCH	?= SerenityOS
+ SDL_VER ?= 2.0.9
+ ZLIB_VER ?= 1.2.11
+ MGW_PREF ?= i686-w64-mingw32
+@@ -64,6 +65,13 @@ LIBS	+= $(shell pkg-config sdl2 --libs) -lz -lm -lX11
+ ESUFFIX	=
+ endif
+ 
++ifeq ($(ARCH),SerenityOS)
++OBJS    += fbsd_sup.o   # strup()
++RCFLAGS += -DSERENITY $(shell pkg-config sdl2 --cflags)
++LIBS    += $(shell pkg-config sdl2 --libs) -lz -lm
++ESUFFIX =
++endif
++
+ ifeq ($(ARCH),LINUX)
+ OBJS	+= fbsd_sup.o	# strup()
+ RCFLAGS	+= -DLINUX $(shell pkg-config sdl2 --cflags)

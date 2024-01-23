@@ -1,0 +1,22 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Fabian Dellwing <fabian@dellwing.net>
+Date: Tue, 23 Jan 2024 14:14:57 +0100
+Subject: [PATCH] Define `stricmp` and `strnicmp`
+
+---
+ def.h | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/def.h b/def.h
+index 1c813804ee71702642386a6366a95c2b785cf280..4cea88a05b2bc32f996d504a9a311f31b5fe75d7 100644
+--- a/def.h
++++ b/def.h
+@@ -93,7 +93,7 @@
+ #include "fbsd_sup.h"
+ #endif
+ 
+-#ifdef UNIX
++#if defined(UNIX) || defined(__serenity__)
+ #define stricmp(x, y) strcasecmp(x, y)
+ #define strnicmp(x, y, z) strncasecmp(x, y, z)
+ #endif
