@@ -9,6 +9,7 @@
 #include <LibCore/File.h>
 #include <LibCore/FileWatcher.h>
 #include <LibCore/System.h>
+#include <LibFileSystem/FileSystem.h>
 
 #define DEFAULT_LINE_COUNT 10
 
@@ -48,13 +49,33 @@ ErrorOr<int> serenity_main(Main::Arguments arguments)
     TRY(Core::System::pledge("stdio rpath"));
 
     bool follow = false;
+    bool follow_by_name = false;
     bool retry = false;
     size_t wanted_line_count = DEFAULT_LINE_COUNT;
     StringView file;
 
     Core::ArgsParser args_parser;
     args_parser.set_general_help("Print the end ('tail') of a file.");
-    args_parser.add_option(follow, "Output data as it is written to the file", "follow", 'f');
+    args_parser.add_option(Core::ArgsParser::Option {
+        .argument_mode = Core::ArgsParser::OptionArgumentMode::Optional,
+        .help_string = "Output data as it is written to the file",
+        .long_name = "follow",
+        .short_name = 'f',
+        .value_name = "name|descriptor",
+        .accept_value = [&](StringView s) -> ErrorOr<bool> {
+            if (!s.is_empty()) {
+                if (s == "name") {
+                    follow_by_name = true;
+                } else if (s == "descriptor") {
+                    follow_by_name = false;
+                } else {
+                    return false;
+                }
+            }
+            follow = true;
+            return true;
+        },
+    });
     args_parser.add_option(Core::ArgsParser::Option {
         .argument_mode = Core::ArgsParser::OptionArgumentMode::None,
         .help_string = "Retry opening the file if it is inaccessible",
@@ -136,6 +157,7 @@ ErrorOr<int> serenity_main(Main::Arguments arguments)
         Core::EventLoop event_loop;
         auto watcher = TRY(Core::FileWatcher::create());
         watcher->on_change = [&](Core::FileWatcherEvent const& event) {
+            dbgln("FileWatcherEvent: type={}, path={}", event.type, event.event_path);
             if (event.type == Core::FileWatcherEvent::Type::ContentModified) {
                 auto buffer_or_error = f->read_until_eof();
                 if (buffer_or_error.is_error()) {
@@ -154,10 +176,36 @@ ErrorOr<int> serenity_main(Main::Arguments arguments)
                     event_loop.quit(error.code());
                     return;
                 }
+            } else if (follow_by_name && event.type == Core::FileWatcherEvent::Type::Deleted) {
+                if (!retry) {
+                    event_loop.quit(0);
+                    return;
+                }
+
+                auto maybe_file = Core::File::open_file_or_standard_stream(file, Core::File::OpenMode::Read);
+                if (maybe_file.is_error()) {
+                    warnln("{}", maybe_file.error());
+                    while (maybe_file.is_error()) {
+                        maybe_file = Core::File::open_file_or_standard_stream(file, Core::File::OpenMode::Read);
+                        usleep(1000);
+                    }
+                }
+                auto f = maybe_file.release_value();
+            } else if (event.type == Core::FileWatcherEvent::Type::ChildCreated) {
+                outln("File was created");
+            } else if (event.type == Core::FileWatcherEvent::Type::ChildDeleted) {
+                outln("File was deleted");
+            } else if (follow_by_name && event.type == Core::FileWatcherEvent::Type::MetadataModified) {
+                outln("File metadata was modified");
+                if (FileSystem::exists(event.event_path)) {
+                    outln("File was created");
+                }
             }
         };
-        TRY(watcher->add_watch(file, Core::FileWatcherEvent::Type::ContentModified));
-        TRY(Core::System::pledge("stdio"));
+        TRY(watcher->add_watch(file, Core::FileWatcherEvent::Type::ContentModified | Core::FileWatcherEvent::Type::Deleted | Core::FileWatcherEvent::Type::ChildCreated | Core::FileWatcherEvent::Type::ChildDeleted | Core::FileWatcherEvent::Type::MetadataModified));
+
+        if (!follow_by_name)
+            TRY(Core::System::pledge("stdio"));
         return event_loop.exec();
     }
     return 0;
