@@ -48,17 +48,46 @@ ErrorOr<int> serenity_main(Main::Arguments arguments)
     TRY(Core::System::pledge("stdio rpath"));
 
     bool follow = false;
+    bool retry = false;
     size_t wanted_line_count = DEFAULT_LINE_COUNT;
     StringView file;
 
     Core::ArgsParser args_parser;
     args_parser.set_general_help("Print the end ('tail') of a file.");
     args_parser.add_option(follow, "Output data as it is written to the file", "follow", 'f');
+    args_parser.add_option(Core::ArgsParser::Option {
+        .argument_mode = Core::ArgsParser::OptionArgumentMode::None,
+        .help_string = "Retry opening the file if it is inaccessible",
+        .long_name = "retry",
+        .accept_value = [&retry](StringView s) -> ErrorOr<bool> {
+            VERIFY(s.is_empty());
+            retry = true;
+            return true;
+        },
+    });
     args_parser.add_option(wanted_line_count, "Fetch the specified number of lines", "lines", 'n', "number");
     args_parser.add_positional_argument(file, "File path", "file", Core::ArgsParser::Required::No);
     args_parser.parse(arguments);
 
-    auto f = TRY(Core::File::open_file_or_standard_stream(file, Core::File::OpenMode::Read));
+    if (retry && !follow) {
+        warnln("warning: --retry ignored; --retry is useful only when following");
+        retry = false;
+    }
+
+    auto maybe_file = Core::File::open_file_or_standard_stream(file, Core::File::OpenMode::Read);
+    if (maybe_file.is_error()) {
+        if (retry) {
+            warnln("{}", maybe_file.error());
+            while (maybe_file.is_error()) {
+                maybe_file = Core::File::open_file_or_standard_stream(file, Core::File::OpenMode::Read);
+                usleep(1000);
+            }
+        } else {
+            return maybe_file.release_error();
+        }
+    }
+    auto f = maybe_file.release_value();
+
     if (!follow)
         TRY(Core::System::pledge("stdio"));
 
